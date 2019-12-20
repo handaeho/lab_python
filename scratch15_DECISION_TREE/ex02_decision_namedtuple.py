@@ -204,8 +204,8 @@ def build_tree(dataset, by_splits, target):
         result = partition_entropy_by(dataset, split_attr, target)
         print('Splitted entropy = ', result)
         return result
-    best_splitted = min(by_splits, key=splitted_entropy)
-    print('best_splitted = ', best_splitted)
+    best_splitter = min(by_splits, key=splitted_entropy)
+    print('best_splitted = ', best_splitter)
     # ~~~> min, max, sort등의 함수는 전달받은 리스트에서 key를 이용해 그 결과를 찾는데,
     # key에 partition_entropy_by(dataset, split_attr, target) 함수를 주기 위해서는 파라미터를 3개 전달해야 한다.
     # 그러나 우리는 'by_splits' 리스트 하나만 가지고 있으므로 파라미터를 1개만 줄 수 있다.
@@ -217,18 +217,22 @@ def build_tree(dataset, by_splits, target):
     # 그리고 그 key로 'by_splits'의 최소값을 찾는다.
 
     # 그리고 이렇게 선택된 변수(엔트로피가 최소인 변수)로 파티션을 구성하고,
-    partitions = partition_by(dataset, best_splitted)
+    partitions = partition_by(dataset, best_splitter)
     print('partitions : ', partitions)
     # ~> 엔트로피가 가장 낮은 'level'에 따라서 파티션을 나눈것을 확인 할 수 있다.
 
     # 그 변수를 제외한 나머지 변수들로 다음 트리를 구성하게 됨.(위 과정 반복)
-    by_splits.remove(best_splitted) # ~> branch 기준 리스트에서 선택된 변수 제거
-    print('제거 후 by_splits : ', by_splits)
-    subtree = {k: build_tree(subset, by_splits, target) for k, subset in partitions.items()}
-    # ~> build_tree() 함수를 사용해서 다음 트리(subtree)를 구성
+    # 먼저, branch 기준 리스트에서 선택된 변수 제거
+    new_split = [x for x in by_splits if x != best_splitter]
+    # ~> 'best_splitted'로 사용되지 않은 변수들만 'new_split' 리스트에 추가
+    print(f'제거 전 by_splits : {by_splits}, 제거 후 new_split : {new_split}')
+
+    subtree = {k: build_tree(subset, new_split, target) for k, subset in partitions.items()}
+    # ~> build_tree() 함수에 다음 트리 구조와 새로운 분기 조건, target을 사용해 재귀 호출하고,
+    # 다음 트리(subtree)를 구성
 
     # Split 객체를 생성하고 리턴 ~~~> 다음 분기 조건이 된다.
-    return Split(best_splitted, subtree)
+    return Split(best_splitter, subtree)
 
 
 if __name__ == '__main__':
