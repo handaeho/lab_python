@@ -9,14 +9,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from collections import namedtuple, Counter, defaultdict
-from typing import NamedTuple
+from typing import NamedTuple, Any
 
 
 # Candidate = namedtuple('Candidate', ('level', 'lang', 'tweets', 'phd', 'result'))
 # ~> 클래스 선언 방식은 이 방식과 결과는 같지만 이 방법에서는 default를 설정 할 수 없다.
 
 class Candidate(NamedTuple):
-    """ NamedTuple을 상속받는 클래스 선언 """
+    """ NamedTuple을 상속받는 Candidate 클래스 선언 """
     level: str
     lang: str
     tweets: bool
@@ -134,6 +134,103 @@ def partition_entropy_by(dataset, by_partition, by_entropy):
     return ent
 
 
+class Leaf(NamedTuple):
+    """ NamedTuple을 상속받는 잎 노드(터미널 노드) 클래스 선언 """
+    value: Any
+
+
+class Split(NamedTuple):
+    """ NamedTuple을 상속받는 Split(트리에서 가지가 분기되는 기준)클래스 선언 """
+    attribute: str
+    subtree: dict
+
+
+def predict(model, sample):
+    """ 우리가 구현한 의사결정나무 모델로 sample 지원자의 합격/불합격을 예측 """
+    if isinstance(model, Leaf): # model이 Leaf() 상태라면 (터미널 노드에 도달했으면)
+        return model.value # model의 value(합격(True)/불합격(False))을 리턴한다.
+
+    subtree_key = getattr(sample, model.attribute)
+    print('subtree_key : ', subtree_key)
+    # sample에서 model(트리)의 attribute를 꺼내어 subtree의 key로 사용한다.
+    # ~> 만약, 모델의 attribute가 'level'이면, sample에서 'Senior' 또는 'Mid', 'Junior'를 꺼낸다.
+    # 왜냐? subtree가 아닌 경우, 가지를 따라 분기해야 하기 떄문에
+    # sample이 attribute로 가지고 있는 값을 찾아서 해당 가지로 내려간다.
+
+    subtree = model.subtree[subtree_key]
+    # subtree_key로 모델에서 subtree를 찾아 가겠다.
+    # 만약, key가 'Senior'면 'Senior'를 기준으로 분기되어 생성된 트리로 가겠다.
+
+    return predict(subtree, sample)
+    # 재귀함수로 자기 자신인 predict()를 다시 호출해,
+    # 다시 model에 subtree를, sample에 sample을 다시 넣고 탐색.
+
+
+def build_tree(dataset, by_splits, target):
+    """
+    예측을 위한 데이터의 tree 모델 생성
+    dataset : 예측의 대상이 될 데이터 세트
+    by_splits : 분기의 기준이 될 label(attribute)
+    target : 알아내고자 하는 결과 (합격(True) / 불합격(False))
+    """
+    print('\n >>> Building Tree ... <<<')
+    print(f'len(dataset) : {len(dataset)} / dataset : {dataset}')
+    print(f'by_splits는 {by_splits} / target은 {target}')
+
+    # target의 개수를 카운트 {True(합격): x명, False(불합격): y명}
+    target_counts = Counter(getattr(sample, target) for sample in dataset)
+    print(f'target_counts = {target_counts}') # target_counts = Counter({True: 9, False: 5})
+    # ~> sample의 target이 True인지 False인지를 가져와서 카운트 (현재 Counter() 객체의 len은 2)
+
+    # Counter() 객체 생성해, len(Counter) == 1이면 터미널노드가 되므로(결과가 1개뿐이므로) Leaf()를 생성하고 종료.
+    if len(target_counts) == 1:
+        keys = list(target_counts.keys())
+        # dict 타입의 keys()가 리턴하는 타입은 리스트가 아니기 때문에 '[] 연산자'는 사용 불가.
+        result = keys[0] # ~> True 또는 False 중 하나
+        leaf = Leaf(result)
+        print('leaf : ', leaf)
+        return leaf
+
+    # len(by_splits) == 0이면, 트리의 깊이(depth)가 0. 즉, 더이상 서브트리를 나눌 기준이 없을 때,
+    if not by_splits: # if len(by_splits) == 0
+        return Leaf(list(target_counts.keys())[0]) # ~> 남은 분할 기준은 터미널 노드가 되고, 이를 리턴한다.
+
+    # len(Counter) != 1이면 터미널 노드가 아니므로 특정 label로 파티션을 나눌수 있다.
+    # by_split(분기의 기준)의 각 변수로 파티션을 구성하고, 파티션 별로 엔트로피를 계산하여
+    # 엔트로피가 가장 낮은(불확실성이 작은) 변수를 선택한다.
+
+    # 먼저 partition_entropy_by(dataset, by_split, by_entropy)를 호출 할 수 있는 'Wrapper(helper) 함수' 작성
+    def splitted_entropy(split_attr):
+        result = partition_entropy_by(dataset, split_attr, target)
+        print('Splitted entropy = ', result)
+        return result
+    best_splitted = min(by_splits, key=splitted_entropy)
+    print('best_splitted = ', best_splitted)
+    # ~~~> min, max, sort등의 함수는 전달받은 리스트에서 key를 이용해 그 결과를 찾는데,
+    # key에 partition_entropy_by(dataset, split_attr, target) 함수를 주기 위해서는 파라미터를 3개 전달해야 한다.
+    # 그러나 우리는 'by_splits' 리스트 하나만 가지고 있으므로 파라미터를 1개만 줄 수 있다.
+    # 따라서 'Wrapper 함수'로 '감싸주어서' 파라미터 1개를 전달해주고,
+    # 나머지 2개의 파라미터는 이미 가지고 있는 변수를 사용할 수 있게하고,
+    # 그 Wrapper 함수의 리턴값을 'key'로 하여 min(by_splits) 함수를 실행한다.
+    # 즉, 'by_splits' 리스트가 'splitted_entropy(split_attr)'로 들어가고,
+    # 그 안에서 'partition_entropy_by(dataset, split_attr, target)'가 실행되어 결과를 리턴하면 그 결과값이 key가 되는것.
+    # 그리고 그 key로 'by_splits'의 최소값을 찾는다.
+
+    # 그리고 이렇게 선택된 변수(엔트로피가 최소인 변수)로 파티션을 구성하고,
+    partitions = partition_by(dataset, best_splitted)
+    print('partitions : ', partitions)
+    # ~> 엔트로피가 가장 낮은 'level'에 따라서 파티션을 나눈것을 확인 할 수 있다.
+
+    # 그 변수를 제외한 나머지 변수들로 다음 트리를 구성하게 됨.(위 과정 반복)
+    by_splits.remove(best_splitted) # ~> branch 기준 리스트에서 선택된 변수 제거
+    print('제거 후 by_splits : ', by_splits)
+    subtree = {k: build_tree(subset, by_splits, target) for k, subset in partitions.items()}
+    # ~> build_tree() 함수를 사용해서 다음 트리(subtree)를 구성
+
+    # Split 객체를 생성하고 리턴 ~~~> 다음 분기 조건이 된다.
+    return Split(best_splitted, subtree)
+
+
 if __name__ == '__main__':
     candidates = [Candidate('Senior', 'Java', False, False, False),
                   Candidate('Senior', 'Java', False, True, False),
@@ -228,12 +325,38 @@ if __name__ == '__main__':
     # Counter({False: 3, True: 3}) ~~~> 박사학위가 있는 사람 파티션에서 불합격 3명, 합격 3명
     # 0.8921589282623617 ~~~> 'phd'가 'result'에 대해 갖는 엔트로피
 
+    # leaf 클래스 / Split 테스트
+    hire_tree = Split('level', {'Senior': Split(
+                                    'tweets',
+                                    {True: Leaf(True), False: Leaf(False)}),
+                                'Mid': Leaf(True),
+                                'Junior': Split(
+                                    'phd',
+                                    {True: Leaf(False), False: Leaf(True)}
+                                )})
+    # 우리가 구성한 'Candidate'의 스펙으로 보면 'level'이라는 label(attribute)에서,
+    # 'Senior', 'Junior'라는 분기 기준으로 분기하게 되면,
+    # 각각 다시 'tweets', 'phd'라는 노드로 갈라지게 되므로 Split() 클래스를 value로 갖고,
+    # 'Mid'라는 기준으로 분기하면 바로 터미널 노드가 되므로(합격(True)이므로) Leaf() 클래스를 value로 갖는다.
 
+    # 'Senior'의 tweets' 분기 기준 역시 True(사용O)/False(사용x)라는 기준으로 갈라지게 되므로 또 Split() 클래스를 갖는다.
+    # 그리고 True라면 합격, False라면 불합격이므로 {True: Leaf(True), False: Leaf(False)}를 dict로 갖는다.
 
+    # 'Junior'의 'phd; 분기 기준 역시 True(있다)/False(없다)라는 기준으로 갈라지므로 Split() 클래스를 갖고,
+    # True라면 불합격, False라면 합격이므로 {True: Leaf(False), False: Leaf(True)}를 dict로 갖는다.
 
+    # predict() 함수 테스트
+    print(hire_tree)
+    candidate_1 = Candidate('Senior', 'Java', False, False, False)
+    result = predict(hire_tree, candidate_1)
+    print('candidate_1 result = ', result)
 
+    print(hire_tree)
+    candidate_2 = Candidate('Mid', 'Python', False, False, True)
+    result = predict(hire_tree, candidate_2)
+    print('candidate_2 result = ', result)
 
-
-
-
-
+    # build_tree 함수 테스트
+    tree = build_tree(candidates, ['level', 'lang', 'tweets', 'phd'], 'result')
+    # ~> candidate의 데이터 셋을 ['level', 'lang', 'tweets', 'phd']를 기준으로 트리를 구성하여 'result'를 알아보겠다.
+    print(tree)
