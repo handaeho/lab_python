@@ -58,7 +58,7 @@ if __name__ == '__main__':
     # 10. 모델 성능 개선 위한 k값 변화(평균 오차율 분석)
     errors = []
     for i in range(1, 41):
-        knn = KNeighborsClassifier(n_neighbors=i)  # krkqtdmf 1 ~ 30까지 변화 시킴
+        knn = KNeighborsClassifier(n_neighbors=i)  # k값을 1 ~ 30까지 변화 시킴
         knn.fit(X_train, Y_train)
         pred_i = knn.predict(X_test)
         errors.append(np.mean(pred_i != Y_test))  # 예측값(pred_i)과 실제값(Y_test)이 다른 결과의 평균들을 errors 배열에 추가
