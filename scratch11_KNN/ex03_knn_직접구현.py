@@ -29,10 +29,10 @@ def train_test_split(X, y, test_size):
     cut = int(length * (1 - test_size))
 
     # 비율에 맞게 수정된 train_set / test_set 생성
-    X_train = X[indices[:cut]] # X의 indices를 cut까지만큼 열을 갖는 리스트로 X_train 생성(cut=4면 처음부터 4행까지)
-    X_test = X[indices[cut:]] # X의 indices를 cut부터 끝까지만큼 열을 갖는 리스트로 X_test 생성(cut=4면 4행부터 끝까지)
-    y_train = y[indices[:cut]] # y의 indices를 cut까지 만큼 열을 갖는 리스트로 y_train 생성
-    y_test = y[indices[cut:]] # y의 indices를 cut부터 끝까지만큼의 열을 갖는 리스트로 y_test 생성
+    X_train = X[indices[:cut]] # X의 indices를 cut까지만큼 행을 갖는 리스트로 X_train 생성(cut=4면 처음부터 4행까지)
+    X_test = X[indices[cut:]] # X의 indices를 cut부터 끝까지만큼 행을 갖는 리스트로 X_test 생성(cut=4면 4행부터 끝까지)
+    y_train = y[indices[:cut]] # y의 indices를 cut까지 만큼 행을 갖는 리스트로 y_train 생성
+    y_test = y[indices[cut:]] # y의 indices를 cut부터 끝까지만큼의 행을 갖는 리스트로 y_test 생성
 
     return X_train, X_test, y_train, y_test
 
